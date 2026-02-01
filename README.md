@@ -15,5 +15,5 @@ docker run tsktp/sbox-public-linux-docker:latest
 git clone https://github.com/tsktp/sbox-public-linux-docker.git
 docker build -t tsktp/sbox-public-linux-docker:latest .
 # /host/path is your local path
-docker run --mount type=volume,source=/host/path,target=/root/sbox tsktp/sbox-public-linux-docker:latest
+docker run --mount type=bind,source=/host/path,target=/root/sbox tsktp/sbox-public-linux-docker:latest
 ```
