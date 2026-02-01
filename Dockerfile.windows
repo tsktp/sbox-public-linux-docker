@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/windows:20H2
+
+LABEL maintainer="tsktp"
+
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+RUN choco install git dotnet-10.0-sdk -y
+	
+RUN git clone --depth 1 https://github.com/Facepunch/sbox-public.git sbox && \
+	cd sbox && \
+	dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- build --config Developer && \
+	dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- build-shaders && \
+	dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- build-content
+	
