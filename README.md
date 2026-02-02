@@ -21,7 +21,10 @@ docker build -t tsktp/sbox-public-linux-docker:latest .
 
 ### Accessing Data and Running
 ```bash
+# creates volume to mount endpoint
 docker create ${volume_name}
+
+# runs the built docker container
 docker run -it -v ${volume_name}:/root/sbox tsktp/sbox-public-linux-docker:latest
 
 # locate volume location
