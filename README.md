@@ -1,36 +1,34 @@
 # sbox-public-linux-docker
-Dockerized s&box linux engine.
 
-## Usage
+## Prerequisites
+
+- **Docker** or **Podman** (either works)
+- **Git**
+- Arch users may need to install `docker-buildx`
+
+## Quick Start
+
 ```bash
-# Build Docker Image
-docker build -t tsktp/sbox-public-linux-docker:latest .
-
-# Latest Public Build
-docker run tsktp/sbox-public-linux-docker:latest
-```
-
-## Steps
-
-### Building
-```bash
+# Clone this repository
 git clone https://github.com/tsktp/sbox-public-linux-docker.git
 cd sbox-public-linux-docker
-docker build -t tsktp/sbox-public-linux-docker:latest .
+
+# Compile sbox-public from folder
+./sbox-install.sh compile /path/to/sbox-public
 ```
 
-### Accessing Data and Running
+## Usage
+
 ```bash
-# creates volume to mount endpoint
-docker create ${volume_name}
+# Compile s&box from source (first run: 10-20 minutes, subsequent: 1-2 minutes)
+./sbox-install.sh compile /path/to/sbox-public
 
-# runs the built docker container
-docker run -it -v ${volume_name}:/root/sbox tsktp/sbox-public-linux-docker:latest
+# Open a debugging shell in the build environment
+./sbox-install.sh shell /path/to/sbox-public
 
-# locate volume location
-docker volume inspect ${volume_name}
+# Rebuild the container image (update dependencies)
+./sbox-install.sh update
 
-# list directory
-ls -la /var/lib/docker/volumes/{volume_name}/_data
+# Show help
+./sbox-install.sh help
 ```
-
