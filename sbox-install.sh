@@ -142,11 +142,15 @@ fi
 echo "Checking for case-sensitive folder conflicts..."
 if [ -d "/root/sbox/game/addons/menu/code" ] && [ -d "/root/sbox/game/addons/menu/Code" ]; then
     echo "Found both 'code' and 'Code' folders in menu addon. Merging..."
-    # Copy contents from lowercase to capitalized
-    cp -r /root/sbox/game/addons/menu/code/* /root/sbox/game/addons/menu/Code/ 2>/dev/null || true
-    # Remove lowercase folder
-    rm -rf /root/sbox/game/addons/menu/code
-    echo "Merged 'code' into 'Code' and removed lowercase folder."
+    # Copy contents from lowercase to capitalized, overwriting any duplicates
+    cp -rf /root/sbox/game/addons/menu/code/* /root/sbox/game/addons/menu/Code/
+    # Verify copy succeeded, then remove lowercase folder
+    if [ $? -eq 0 ]; then
+        rm -rf /root/sbox/game/addons/menu/code
+        echo "Merged 'code' into 'Code' (overwrote duplicates) and removed lowercase folder."
+    else
+        echo "Warning: Failed to merge folders completely."
+    fi
 fi
 
 echo "=== Starting build at $(date) ==="
@@ -224,9 +228,14 @@ case "$COMMAND" in
         fi
         BUILD_DIR=$(cd "$BUILD_DIR" && pwd)
         
-        echo "Building container image (this may take 10-15 minutes)..."
-        get_dockerfile | $ENGINE build --no-cache -t "$IMAGE_NAME" -f - .
-        echo "Image build complete!"
+        echo "Ensuring build environment image exists..."
+        if ! $ENGINE image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+            echo "Building container image (this may take 10-15 minutes)..."
+            get_dockerfile | $ENGINE build -t "$IMAGE_NAME" -f - .
+            echo "Image build complete!"
+        else
+            echo "Using existing container image."
+        fi
 
         echo "Checking source in $BUILD_DIR..."
         if [ ! -d "$BUILD_DIR" ]; then
@@ -241,12 +250,15 @@ case "$COMMAND" in
         echo "Checking for case-sensitive folder conflicts..."
         if [ -d "$BUILD_DIR/game/addons/menu/code" ] && [ -d "$BUILD_DIR/game/addons/menu/Code" ]; then
             echo "Found both 'code' and 'Code' folders in menu addon. Merging..."
-            # Copy contents from lowercase to capitalized (preserve existing files)
-            cp -rn "$BUILD_DIR/game/addons/menu/code/"* "$BUILD_DIR/game/addons/menu/Code/" 2>/dev/null || \
-            cp -r "$BUILD_DIR/game/addons/menu/code/"* "$BUILD_DIR/game/addons/menu/Code/" 2>/dev/null || true
-            # Remove lowercase folder after successful merge
-            rm -rf "$BUILD_DIR/game/addons/menu/code"
-            echo "✓ Merged 'code' into 'Code' and removed lowercase folder."
+            # Copy contents from lowercase to capitalized, overwriting any duplicates
+            cp -rf "$BUILD_DIR/game/addons/menu/code/"* "$BUILD_DIR/game/addons/menu/Code/"
+            # Verify copy succeeded, then remove lowercase folder
+            if [ $? -eq 0 ]; then
+                rm -rf "$BUILD_DIR/game/addons/menu/code"
+                echo "✓ Merged 'code' into 'Code' (overwrote duplicates) and removed lowercase folder."
+            else
+                echo "Warning: Failed to merge folders completely."
+            fi
         fi
 
         echo ""
