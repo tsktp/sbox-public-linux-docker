@@ -7,6 +7,7 @@ set -e
 
 IMAGE_NAME="sbox-public-builder"
 DEFAULT_BUILD_DIR="$HOME/sbox-build"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_help() {
     echo "sbox-tool - Distro-agnostic s&box Linux Builder"
@@ -34,75 +35,11 @@ detect_engine() {
     fi
 }
 
-get_dockerfile() {
-    cat <<'EOF'
-FROM ubuntu:noble
-
-LABEL maintainer="tsktp"
-
-ENV WINEPREFIX=/root/.wine64
-ENV WINEARCH=win64
-ENV DISPLAY=:0
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN dpkg --add-architecture i386
-
-RUN apt-get update -qq && \
-	apt-get install -qq curl wget git xvfb winbind wine64 wine32:i386 cabextract bzip2 ca-certificates libvulkan1 libvulkan1:i386 && \
-	apt-get clean -qq all
-	
-RUN wget https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
-	chmod +x winetricks && \
-	mv winetricks /usr/bin/
-	
-RUN wget https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.102/dotnet-sdk-10.0.102-win-x64.exe && \
-    xvfb-run -a -s "-screen 0 1024x768x24" wine dotnet-sdk-10.0.102-win-x64.exe /install /quiet; \
-    wineserver -w && \
-    rm dotnet-sdk-10.0.102-win-x64.exe
-
-RUN wget https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.102/dotnet-sdk-10.0.102-win-x86.exe && \
-    xvfb-run -a -s "-screen 0 1024x768x24" wine dotnet-sdk-10.0.102-win-x86.exe /install /quiet; \
-    wineserver -w && \
-    rm dotnet-sdk-10.0.102-win-x86.exe
-	
-RUN wget --no-check-certificate https://symantec.tbs-certificats.com/vsign-universal-root.crt && \
-	mkdir -p /usr/local/share/ca-certificates/extra && \
-	cp vsign-universal-root.crt /usr/local/share/ca-certificates/extra/vsign-universal-root.crt && \
-	update-ca-certificates && \
-	rm vsign-universal-root.crt
-
-RUN xvfb-run -a -s "-screen 0 1024x768x24" winetricks -q powershell cmake mingw 7zip cabinet; \
-    wineserver -w
-
-RUN xvfb-run -a -s "-screen 0 1024x768x24" winetricks -q d3dxof dxdiag dxvk dxvk_async dxvk_nvapi; \
-    wineserver -w
-
-RUN wget https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/Git-2.52.0-64-bit.tar.bz2 && \
-	mkdir -p /root/.wine64/drive_c/Git && \
-	tar xjvf Git-2.52.0-64-bit.tar.bz2 -C /root/.wine64/drive_c/Git && \
-	rm Git-2.52.0-64-bit.tar.bz2 && \
-	mkdir -p /root/.wine64/drive_c/MinGW/bin && \
-	ln -s /root/.wine64/drive_c/Git/bin/git.exe /root/.wine64/drive_c/MinGW/bin/git.exe
-
-# Configure git to trust the mounted repository
-RUN /root/.wine64/drive_c/Git/bin/git.exe config --global --add safe.directory '*'
-RUN /root/.wine64/drive_c/Git/bin/git.exe config --global --add safe.directory 'Z:/root/sbox'
-
-WORKDIR /root/sbox
-
-# Set the working directory and use bash as default
-CMD ["/bin/bash"]
-EOF
-}
-
 ENGINE=$(detect_engine)
 if [ -z "$ENGINE" ]; then
     echo "Error: Neither docker nor podman found."
     exit 1
 fi
-
-COMMAND=$1
-shift || true
 
 run_build_step() {
     local step_name="$1"
@@ -130,13 +67,6 @@ set -x
 cd /root/sbox
 export WINEDEBUG=-all
 export DISPLAY=:99
-
-# Configure git to trust the repository (fix ownership issues in wine)
-echo "Configuring git safe directories..."
-if [ -f /root/.wine64/drive_c/Git/bin/git.exe ]; then
-    /root/.wine64/drive_c/Git/bin/git.exe config --global --add safe.directory '*' 2>/dev/null || true
-    /root/.wine64/drive_c/Git/bin/git.exe config --global --add safe.directory 'Z:/root/sbox' 2>/dev/null || true
-fi
 
 # Fix case-sensitive folder issues (merge lowercase 'code' into 'Code')
 echo "Checking for case-sensitive folder conflicts..."
@@ -213,6 +143,9 @@ SCRIPT
     echo ""
 }
 
+COMMAND=$1
+shift || true
+
 case "$COMMAND" in
     compile)
         BUILD_DIR="${1:-$DEFAULT_BUILD_DIR}"
@@ -230,8 +163,8 @@ case "$COMMAND" in
         
         echo "Ensuring build environment image exists..."
         if ! $ENGINE image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
-            echo "Building container image (this may take 10-15 minutes)..."
-            get_dockerfile | $ENGINE build -t "$IMAGE_NAME" -f - .
+            echo "Building container image from Dockerfile (this may take 10-15 minutes)..."
+            $ENGINE build -t "$IMAGE_NAME" "$SCRIPT_DIR"
             echo "Image build complete!"
         else
             echo "Using existing container image."
@@ -294,7 +227,7 @@ case "$COMMAND" in
         ;;
     update)
         echo "Updating build environment (rebuilding image)..."
-        get_dockerfile | $ENGINE build --no-cache -t "$IMAGE_NAME" -f - .
+        $ENGINE build --no-cache -t "$IMAGE_NAME" "$SCRIPT_DIR"
         ;;
     help|*)
         show_help
